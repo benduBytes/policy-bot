@@ -14,14 +14,18 @@ app = Flask(__name__)
 
 # Load environment variables
 load_dotenv()
+
+
+# Fetch API keys from environment
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
 # Set API keys
 os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
 
 hf_model = HuggingFaceHub(
     repo_id="mistralai/Mixtral-8x7B-Instruct-v0.1",  # Change this to the repo you want
-    huggingfacehub_api_token="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",  # Use your Hugging Face API token
+    huggingfacehub_api_token=HF_API_TOKEN,  # Use your Hugging Face API token
     model_kwargs={"temperature": 0.4, "max_new_tokens": 500}  # Adjust these as necessary
 )
 
@@ -49,6 +53,45 @@ prompt = ChatPromptTemplate.from_messages([
 question_answer_chain = create_stuff_documents_chain(hf_model, prompt)
 rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
+def extract_final_answer(full_output, user_question):
+    """
+    Extracts the actual model answer intelligently from full_output text.
+    """
+    full_output = full_output.strip()
+
+    # First try matching "Answer:" using regex
+    answer_matches = list(re.finditer(r"Answer:\s*(.+?)(?=(\n|$))", full_output, re.DOTALL))
+    if answer_matches:
+        # Pick the last Answer: found
+        last_match = answer_matches[-1]
+        return last_match.group(1).strip()
+
+    # Else fallback: Try matching "Assistant:" using regex
+    assistant_matches = list(re.finditer(r"Assistant:\s*(.+?)(?=(\n|$))", full_output, re.DOTALL))
+    if assistant_matches:
+        last_match = assistant_matches[-1]
+        return last_match.group(1).strip()
+
+    # Else fallback: Try matching the line after the user's question
+    lines = [line.strip() for line in full_output.split("\n") if line.strip()]
+    for i, line in enumerate(lines):
+        if line.lower() == user_question.lower() and i + 1 < len(lines):
+            # Return the next line if it's a proper sentence
+            if len(lines[i + 1].split()) > 3:
+                return lines[i + 1]
+
+    # If no relevant answer is found, return the custom message
+    if "maturity age" in user_question.lower() or "jeevan umang" in user_question.lower():
+        return "I have not been updated with the data you're asking for regarding the maturity age in Jeevan Umang. Please contact your insurance policy guide for more details."
+
+    # Else final fallback: first long enough sentence
+    for line in lines:
+        if len(line.split()) > 3 and line.lower() != user_question.lower():
+            return line
+
+    return "Sorry, I couldn't find an answer to your question."
+
+
 @app.route("/")
 def index():
     return render_template('chat.html')
@@ -61,22 +104,18 @@ def chat():
 
     print(f"User Input: {msg}")
     
-    # Invoke the RAG chain to get the response
     response = rag_chain.invoke({"input": msg})
     
-    # Extract only the part after "Assistant:"
-    full_output = response.get("answer", "")
-    match = re.search(r"Assistant:\s*(.+)", full_output, re.DOTALL)
+    full_output = response.get("answer", "").strip()
 
-    if match:
-        final_answer = match.group(1).strip()
-    else:
-        final_answer = full_output.strip()
-    
+    final_answer = extract_final_answer(full_output, msg)
+
     print("Final Answer:", final_answer)
     
-    # Return the extracted answer
     return jsonify({"answer": final_answer if final_answer else "Error generating response"})
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
