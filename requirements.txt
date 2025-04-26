@@ -1,11 +1,9 @@
-huggingface_hub==0.19.4
 sentence-transformers==2.2.2
-langchain==0.2.2
-flask==2.2.5
-werkzeug==2.2.3
+langchain
+flask
 pypdf
 python-dotenv
-pinecone-client
+pinecone[grpc]
 langchain-pinecone
 langchain_community
 langchain_openai
