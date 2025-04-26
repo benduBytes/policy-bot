@@ -1,6 +1,7 @@
+huggingface_hub==0.19.4
 sentence-transformers==2.2.2
-langchain
-flask
+langchain==0.2.2
+flask==2.0.1
 pypdf
 python-dotenv
 pinecone[grpc]
