@@ -2,6 +2,7 @@ sentence-transformers==2.2.2
 huggingface-hub>=0.14.1,<0.20.0
 langchain
 flask
+gunicorn
 pypdf
 python-dotenv
 pinecone[grpc]
